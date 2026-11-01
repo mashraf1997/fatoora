@@ -1,0 +1,16 @@
+{
+  "name": "fatoora",
+  "version": "0.1.0",
+  "description": "Open-source invoices and quotes for freelancers and small businesses: Arabic and English, amount in words, client links, payments, overdue follow-up.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {},
+  "license": "MIT",
+  "keywords": ["invoice", "quote", "billing", "freelancer", "arabic", "self-hosted", "pdf"]
+}

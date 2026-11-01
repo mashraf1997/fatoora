@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fatoora</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<style>
+  .items { width: 100%; border-collapse: collapse; min-width: 640px; }
+  .items td, .items th { padding: 6px; border-bottom: 1px solid var(--line); }
+  .items input { padding: 7px 9px; }
+  .items .q { width: 80px; } .items .p { width: 120px; } .items .a { width: 120px; text-align: end; font-variant-numeric: tabular-nums; }
+  .sumbox { margin-inline-start: auto; width: min(340px, 100%); display: grid; gap: 6px; }
+  .sumbox div { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .sumbox input { width: 110px; }
+  .sumbox .grand { font-size: 1.2rem; font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; }
+  .money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-paid { color: var(--good); background: var(--good-soft); } .st-overdue { color: var(--bad); background: var(--bad-soft); } .st-partial, .st-sent { color: var(--warn); background: var(--warn-soft); } .st-draft, .st-cancelled, .st-invoiced { color: var(--muted); background: var(--bg); } .st-accepted { color: var(--good); background: var(--good-soft); } .st-declined { color: var(--bad); background: var(--bad-soft); }
+  dialog.ed { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); width: min(560px, 94vw); padding: 20px; }
+  dialog.ed::backdrop { background: rgba(0,0,0,.45); }
+  .logo-prev { max-height: 56px; max-width: 180px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
