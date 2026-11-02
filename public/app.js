@@ -14,6 +14,7 @@
       waInvoice: 'أهلاً {name}، دي فاتورة {number} بمبلغ {total}:\n{link}', waReminder: 'أهلاً {name}، تذكير لطيف بفاتورة {number} (المتبقي {balance}) اللي كان ميعادها {due}:\n{link}\nشكراً 🙏', waQuote: 'أهلاً {name}، ده عرض السعر {number} بمبلغ {total}:\n{link}', remind: 'ذكّر على واتساب',
       cName: 'الاسم', company: 'الشركة', phone: 'الموبايل (بكود الدولة للواتساب)', email: 'الإيميل', address: 'العنوان', taxId: 'الرقم الضريبي', cNotes: 'ملاحظات', invoicesN: 'فواتير', edit: 'تعديل', close: 'إغلاق',
       biz: 'بيانات النشاط', logo: 'اللوجو', removeLogo: 'شيل اللوجو', currency: 'كود العملة', currencyName: 'اسم العملة بالعربي', currencyNameEn: 'اسم العملة بالإنجليزي', taxLabel: 'اسم الضريبة', defTax: 'الضريبة الافتراضية %', dueDays: 'مهلة الدفع (يوم)', payInfo: 'طريقة الدفع (حساب بنكي، إنستاباي…)', footer: 'سطر أسفل الفاتورة', prefixInv: 'بادئة الفواتير', prefixQ: 'بادئة العروض', nextInv: 'رقم الفاتورة الجاية', color: 'اللون', defLang: 'لغة المستندات الافتراضية', tz: 'المنطقة الزمنية',
+      hookTitle: 'فاتورة تلقائية لكل طلب', hookLead: 'حط الرابط ده في إشعارات Wakeel (Webhook) أو في Dukkan، وكل طلب هيتعمله فاتورة لوحده.', hookAuto: 'اعتبر الفواتير دي «اتبعتت» على طول (بدل مسودة)',
       pwTitle: 'تغيير كلمة السر', current: 'الحالية', next: 'الجديدة', change: 'تغيير', note: 'فاتورة مش نظام فاتورة إلكترونية رسمي (زي ZATCA أو ETA).',
     },
     en: {
@@ -28,6 +29,7 @@
       waInvoice: 'Hi {name}, here is invoice {number} for {total}:\n{link}', waReminder: 'Hi {name}, a friendly reminder about invoice {number} ({balance} left), due {due}:\n{link}\nThank you 🙏', waQuote: 'Hi {name}, here is quote {number} for {total}:\n{link}', remind: 'Remind on WhatsApp',
       cName: 'Name', company: 'Company', phone: 'Phone (with country code for WhatsApp)', email: 'Email', address: 'Address', taxId: 'Tax ID', cNotes: 'Notes', invoicesN: 'invoices', edit: 'Edit', close: 'Close',
       biz: 'Business details', logo: 'Logo', removeLogo: 'Remove logo', currency: 'Currency code', currencyName: 'Currency name (Arabic)', currencyNameEn: 'Currency name (English)', taxLabel: 'Tax name', defTax: 'Default tax %', dueDays: 'Payment terms (days)', payInfo: 'Payment details (bank account, InstaPay…)', footer: 'Footer line', prefixInv: 'Invoice prefix', prefixQ: 'Quote prefix', nextInv: 'Next invoice number', color: 'Color', defLang: 'Default document language', tz: 'Time zone',
+      hookTitle: 'An invoice for every order', hookLead: 'Paste this URL in Wakeel notifications (webhook) or in Dukkan. Each order becomes an invoice automatically.', hookAuto: 'Mark these invoices as sent right away (instead of draft)',
       pwTitle: 'Change password', current: 'Current', next: 'New', change: 'Change', note: 'Fatoora is not an official e-invoicing system (such as ZATCA or ETA).',
     },
   };
@@ -248,11 +250,16 @@
         <div class="grid4">${f('b-ni', 'nextInv', b.nextInvoice, 'number')}<label class="field" for="b-l">${t('defLang')}<select id="b-l"><option value="ar" ${b.lang === 'ar' ? 'selected' : ''}>العربية</option><option value="en" ${b.lang === 'en' ? 'selected' : ''}>English</option></select></label>
           <label class="field" for="b-co">${t('color')}<input type="color" id="b-co" value="${esc(b.color)}" style="height:40px"></label>${f('b-tz', 'tz', timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, 'text', 'ltr')}</div>
         <div class="row"><button class="btn primary" type="submit">${t('save')}</button></div></form>
+      <section class="card" style="max-width:820px"><h2>${t('hookTitle')}</h2><p class="muted small">${t('hookLead')}</p>
+        <div class="copy"><pre id="hk">${esc(location.origin + '/hooks/order?key=' + b.hookKey)}</pre><button class="btn sm" type="button" id="hkc">${t('copyLink')}</button></div>
+        <label class="switch"><input type="checkbox" id="b-as" ${b.hookAutoSend ? 'checked' : ''}>${t('hookAuto')}</label></section>
       <form class="card" id="pw" style="max-width:480px"><h2>${t('pwTitle')}</h2><label class="field" for="pc">${t('current')}<input type="password" id="pc"></label><label class="field" for="pn">${t('next')}<input type="password" id="pn"></label><div class="err" id="pe"></div><div class="row"><button class="btn primary" type="submit">${t('change')}</button></div></form>
       <p class="muted small">Fatoora · ${esc(S.session.version)} · MIT · ${t('note')}</p></div>`;
     const saveB = async (extra = {}) => {
       S.business = (await api('/api/business', { method: 'PUT', body: { timezone: $('#b-tz').value, business: { name: $('#b-n').value, taxId: $('#b-t').value, phone: $('#b-p').value, email: $('#b-e').value, address: $('#b-a').value, paymentInfo: $('#b-pi').value, footer: $('#b-f').value, currency: $('#b-c').value, currencyName: $('#b-cn').value, currencyNameEn: $('#b-ce').value, taxLabel: $('#b-tl').value, taxRate: Number($('#b-tr').value), dueDays: Number($('#b-dd').value), invoicePrefix: $('#b-pf').value, quotePrefix: $('#b-qf').value, nextInvoice: Number($('#b-ni').value), lang: $('#b-l').value, color: $('#b-co').value, ...extra } } })).business;
     };
+    $('#hkc').onclick = async () => { try { await navigator.clipboard.writeText($('#hk').textContent); toast(t('copied')); } catch { toast($('#hk').textContent); } };
+    $('#b-as').onchange = async () => { await api('/api/business', { method: 'PUT', body: { business: { hookAutoSend: $('#b-as').checked } } }); toast(t('saved')); };
     $('#bf').onsubmit = async (e) => { e.preventDefault(); try { await saveB(); toast(t('saved')); } catch (err) { toast(err.message); } };
     $('#lu').onclick = () => $('#lf').click();
     $('#lf').onchange = () => { const file = $('#lf').files[0]; if (!file) return; const fr = new FileReader(); fr.onload = async () => { try { await saveB({ logo: String(fr.result) }); pSettings(main); } catch (err) { toast(err.message); } }; fr.readAsDataURL(file); };

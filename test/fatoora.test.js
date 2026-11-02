@@ -113,3 +113,22 @@ test('pages are served and the API needs a session', async () => {
   assert.equal((await fetch(base + '/d/whatever')).status, 200);
   assert.equal((await call('/api/docs', { auth: false })).status, 401);
 });
+
+test('orders from Wakeel and Dukkan become invoices', async () => {
+  const key = app.data.business.hookKey;
+  let r = await call('/hooks/order?key=nope', { method: 'POST', body: {}, auth: false });
+  assert.equal(r.status, 403);
+  const wakeel = { event: 'order', request: { id: 'RQ7K2', customerName: 'منى', phone: '+20 100 555 6677', items: [{ name: 'تورتة شوكولاتة', quantity: 1, unitPrice: 450 }, { name: 'كب كيك', quantity: 6, unitPrice: 30 }] } };
+  r = await call('/hooks/order?key=' + key, { method: 'POST', body: wakeel, auth: false });
+  assert.equal(r.body.created, true);
+  const inv = app.data.docs.find((d) => d.number === r.body.number);
+  assert.equal(totals(inv).subtotal, 630);
+  assert.equal(inv.status, 'draft');
+  r = await call('/hooks/order?key=' + key, { method: 'POST', body: wakeel, auth: false });
+  assert.equal(r.body.reason, 'duplicate');
+  const dukkan = { event: 'order.created', order: { no: 1042, customer: { name: 'Mona A.', phone: '01005556677' }, items: [{ name: 'Latte', variant: 'L', price: 75, qty: 2 }] } };
+  r = await call('/hooks/order?key=' + key, { method: 'POST', body: dukkan, auth: false });
+  const inv2 = app.data.docs.find((d) => d.number === r.body.number);
+  assert.equal(inv2.items[0].desc, 'Latte - L');
+  assert.equal(inv2.clientId, inv.clientId, 'same customer matched by phone');
+});

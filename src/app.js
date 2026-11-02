@@ -17,7 +17,9 @@ export function defaultData() {
       currency: 'EGP', currencyName: 'جنيه مصري', currencyNameEn: 'Egyptian pounds',
       taxRate: 0, taxLabel: 'ضريبة القيمة المضافة', paymentInfo: '', footer: '', lang: 'ar',
       invoicePrefix: 'INV-', quotePrefix: 'Q-', nextInvoice: 1, nextQuote: 1, dueDays: 14, color: '#0F766E',
+      hookKey: crypto.randomBytes(12).toString('hex'), hookAutoSend: false, // orders from Wakeel / Dukkan
     },
+    processedOrders: [],
     clients: [],
     docs: [], // invoices and quotes
     timezone: '',
@@ -54,7 +56,7 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
   let timer;
   const flush = () => { clearTimeout(timer); fs.writeFileSync(file + '.tmp', JSON.stringify(data)); fs.renameSync(file + '.tmp', file); };
   const save = () => { clearTimeout(timer); timer = setTimeout(flush, 200); };
-  if (!loaded) flush();
+  flush(); // persists defaults added by upgrades (for example the order hook key)
 
   const loginLimiter = new RateLimiter(10, 15 * 60_000);
   const hashFor = (uid) => (uid === 'owner' ? data.admin?.hash : null);
@@ -114,6 +116,35 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
     const method = req.method;
     let m;
     if (p === '/health') return send(res, 200, { ok: true, version: VERSION });
+
+    // Orders from Wakeel or Dukkan become invoices (draft, or sent if the owner chose that).
+    if (p === '/hooks/order' && method === 'POST') {
+      const key = Buffer.from(url.searchParams.get('key') || '');
+      const real = Buffer.from(data.business.hookKey);
+      if (key.length !== real.length || !crypto.timingSafeEqual(key, real)) return send(res, 403, { error: 'bad_key' });
+      const body = await readJson(req);
+      if (body.event && !/order/.test(body.event)) return send(res, 200, { created: false, reason: 'not_an_order' });
+      const o = body.request || body.order || body;
+      const ref = String(o.id || o.no || o.reference || '');
+      if (ref && data.processedOrders.includes(ref)) return send(res, 200, { created: false, reason: 'duplicate' });
+      const items = (o.items || []).map((i) => ({ desc: [i.name, i.variant].filter(Boolean).join(' - '), qty: Number(i.quantity ?? i.qty) || 1, price: Number(i.unitPrice ?? i.price) || 0 })).filter((i) => i.desc);
+      if (!items.length) return send(res, 400, { error: 'no_items' });
+      const name = String(o.customerName || o.customer?.name || '').trim() || 'Customer';
+      const phone = String(o.phone || o.customer?.phone || '').trim();
+      const tail = phone.replace(/\D/g, '').slice(-9);
+      let client = tail.length >= 7 ? data.clients.find((c) => c.phone.replace(/\D/g, '').slice(-9) === tail) : null;
+      if (!client) {
+        client = { id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+        applyClient(client, { name, phone, address: String(o.address || o.customer?.address || '') });
+        data.clients.push(client);
+      }
+      const d = newDoc('invoice', { clientId: client.id, items, taxRate: 0, notes: ref ? `Order ${ref}` : '' });
+      if (data.business.hookAutoSend) { d.status = 'sent'; d.sentAt = new Date().toISOString(); }
+      data.docs.push(d);
+      if (ref) { data.processedOrders.push(ref); if (data.processedOrders.length > 5000) data.processedOrders.splice(0, 1000); }
+      save();
+      return send(res, 200, { created: true, number: d.number, link: d.status === 'sent' ? `/d/${d.token}` : null });
+    }
 
     // ----- client-facing document link -----
     if (method === 'GET' && /^\/d\/[\w-]+$/.test(p)) return serveStatic(res, 'doc.html');
@@ -325,6 +356,7 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
       if (x.dueDays != null) b.dueDays = Math.min(365, Math.max(0, Number(x.dueDays) || 0));
       if (x.nextInvoice != null && Number(x.nextInvoice) >= 1) b.nextInvoice = Math.floor(Number(x.nextInvoice));
       if (/^#[0-9a-f]{6}$/i.test(x.color || '')) b.color = x.color;
+      if (typeof x.hookAutoSend === 'boolean') b.hookAutoSend = x.hookAutoSend;
       if (typeof x.logo === 'string') {
         if (x.logo === '') b.logo = '';
         else if (/^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(x.logo) && x.logo.length < 400_000) b.logo = x.logo;
