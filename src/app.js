@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import { amountInWords } from './words.js';
 import { hashPassword, verifyPassword, createSession, checkSession, parseCookies, RateLimiter } from './auth.js';
 import { send, readJson, clientIp, serveStatic, cookie, VERSION } from './http.js';
+import { demoConfig, resetData } from './demo-mode.js';
+import { buildDemo } from './demo-data.js';
 
 export function defaultData() {
   return {
@@ -47,7 +49,7 @@ export function statusOf(doc, today = new Date().toISOString().slice(0, 10)) {
   return t.paid > 0 ? 'partial' : 'sent';
 }
 
-export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' } = {}) {
+export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '', env = process.env } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, 'fatoora.json');
   const def = defaultData();
@@ -57,6 +59,11 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
   const flush = () => { clearTimeout(timer); fs.writeFileSync(file + '.tmp', JSON.stringify(data)); fs.renameSync(file + '.tmp', file); };
   const save = () => { clearTimeout(timer); timer = setTimeout(flush, 200); };
   flush(); // persists defaults added by upgrades (for example the order hook key)
+  // DEMO_MODE=true: a public showcase with sample data that resets on a timer.
+  const demo = demoConfig(env);
+  const resetDemo = () => { resetData(data, () => buildDemo(demo), demo); flush(); };
+  let demoTimer = null;
+  if (demo) { resetDemo(); demoTimer = setInterval(resetDemo, demo.resetMinutes * 60_000); demoTimer.unref?.(); }
 
   const loginLimiter = new RateLimiter(10, 15 * 60_000);
   const hashFor = (uid) => (uid === 'owner' ? data.admin?.hash : null);
@@ -167,7 +174,8 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
     }
 
     // ----- owner auth -----
-    if (p === '/api/session' && method === 'GET') return send(res, 200, { needsSetup: !data.admin, authed: isAuthed(req), setupTokenRequired: Boolean(setupToken), version: VERSION });
+    if (demo && method === 'POST' && (p === '/api/setup' || p === '/api/password')) return send(res, 403, { error: 'Not available in the demo' });
+    if (p === '/api/session' && method === 'GET') return send(res, 200, { needsSetup: !data.admin, authed: isAuthed(req), setupTokenRequired: Boolean(setupToken), version: VERSION, demo: demo ? { password: demo.password, resetMinutes: demo.resetMinutes } : null });
     if (p === '/api/setup' && method === 'POST') {
       if (data.admin) return send(res, 409, { error: 'Already set up' });
       const body = await readJson(req);
@@ -390,8 +398,9 @@ export function createApp({ dataDir, setupToken = process.env.SETUP_TOKEN || '' 
     });
   });
   return {
+    resetDemo,
     server, data,
     async start(port) { await new Promise((r) => server.listen(port, r)); return server.address().port; },
-    async stop() { flush(); await new Promise((r) => server.close(r)); },
+    async stop() { clearInterval(demoTimer); flush(); await new Promise((r) => server.close(r)); },
   };
 }
